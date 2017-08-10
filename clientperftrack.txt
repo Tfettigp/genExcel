@@ -1,0 +1,26 @@
+
+CREATE VIEW [dbo].[v_clientperftrack] AS
+    SELECT
+	 a.server, a.axionsystemid, b.[Description] AS operation,
+	 a.client_os, a.client_ver, a.pid_number, a.cid,
+    CASE WHEN (a.display_name IS NULL) THEN a.client_name ELSE a.display_name END AS domainclient, 
+	a.dpn_domain, CASE WHEN (a.proxy_cid IS NULL) THEN 
+	CASE WHEN (a.display_name IS NULL) THEN a.client_name ELSE a.display_name END
+	ELSE (SELECT clients.node_name FROM clients WHERE (clients.cid = a.proxy_cid)) END AS host,
+	a.wid AS workorderid, a.session_id AS sessionid, a.effective_path AS group_based_root, 
+	a.scheduled_start_ts, a.started_ts, a.completed_ts, 
+	 datediff(ss, convert(datetime,substring(a.started_ts,1,19),101), convert(datetime,substring(a.completed_ts,1,19),101) ) 	 AS elapsed,
+	(SELECT ev_catalog.summary FROM ev_catalog WHERE (a.last_status_code = ev_catalog.code)) AS [status],
+	a.failure_event_code AS error_code, a.num_of_files AS numfiles, a.num_mod_files AS num_files_mod,
+	a.num_files_skipped, a.bytes_scanned, a.bytes_reduced_compr AS bytes_reduced,
+	a.bytes_new, a.bytes_excluded, a.bytes_skipped, a.bytes_overhead, a.bytes_modified_not_sent AS bytes_mod_not_sent,
+	a.bytes_modified_sent AS bytes_mod_sent, 
+	CASE
+	 WHEN cast(a.bytes_scanned as bigint) < 1 THEN 100 
+	 WHEN (cast(a.bytes_modified_sent as bigint) > cast(a.bytes_scanned as bigint)) THEN 0	ELSE (100 - ((cast(a.bytes_modified_sent as bigint) * 100) / cast(a.bytes_scanned as bigint))) END AS pcntcommon,
+	CASE WHEN (c.is_client_os = 'true') THEN 'Yes' ELSE 'No' END AS is_client_os,
+	a.bytes_hash_cache, a.bytes_is_present 
+	FROM activities a
+	LEFT JOIN activity_types b ON a.type = b.type
+	LEFT JOIN clients c ON a.cid = c.cid 
+GO
